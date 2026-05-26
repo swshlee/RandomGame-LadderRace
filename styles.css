@@ -1,0 +1,436 @@
+:root {
+  --accent: #ffb83d;
+  --secondary: #39d4ff;
+  --base: #171b24;
+  --bg: #07080c;
+  --panel: #121720;
+  --text: #f5f1e8;
+  --muted: #a9b0bb;
+  --line: rgba(255, 255, 255, 0.14);
+  --shadow: rgba(0, 0, 0, 0.42);
+}
+
+* {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    var(--bg);
+  background-size: 46px 46px;
+  color: var(--text);
+  font-family: "Pretendard", "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button,
+.file-button {
+  cursor: pointer;
+}
+
+.app-shell {
+  width: min(1440px, calc(100% - 28px));
+  height: 100dvh;
+  margin: 0 auto;
+  padding: 16px 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.control-panel,
+.stage-panel {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(18, 23, 32, 0.94);
+  box-shadow: 0 22px 60px var(--shadow);
+}
+
+.control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.brand p,
+.stage-top p {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.brand h1,
+.stage-top h2 {
+  margin: 0;
+  line-height: 1.08;
+}
+
+.brand h1 {
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+}
+
+.name-input {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.name-input span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(5, 6, 8, 0.64);
+  color: var(--text);
+  padding: 12px;
+  line-height: 1.55;
+}
+
+.file-row,
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#fileInput {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.file-button,
+.primary-button,
+.ghost-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.primary-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #050608;
+}
+
+.ghost-button,
+.file-button {
+  border: 1px solid var(--line);
+  background: rgba(5, 6, 8, 0.36);
+  color: var(--text);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stats div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(5, 6, 8, 0.36);
+}
+
+.stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.stats strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.6rem;
+}
+
+.message {
+  min-height: 42px;
+  margin: 0;
+  color: var(--secondary);
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.stage-panel {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--accent), transparent 76%), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--base), #000 14%), #050608);
+}
+
+.stage-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  position: relative;
+  z-index: 2;
+}
+
+.stage-top h2 {
+  font-size: clamp(1.3rem, 2.4vw, 2rem);
+}
+
+#stageBadge {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--secondary);
+  font-weight: 900;
+}
+
+.arena {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.06), transparent 38%),
+    rgba(5, 6, 8, 0.48);
+}
+
+.arena::before {
+  content: "";
+  position: absolute;
+  inset: 20px;
+  border: 1px dashed color-mix(in srgb, var(--accent), transparent 40%);
+  border-radius: 8px;
+  opacity: 0.48;
+}
+
+.theme-ladder .arena::after {
+  content: "";
+  position: absolute;
+  inset: 34px 44px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 54px, color-mix(in srgb, var(--accent), transparent 46%) 54px 58px),
+    repeating-linear-gradient(0deg, transparent 0 52px, color-mix(in srgb, var(--secondary), transparent 56%) 52px 56px);
+  opacity: 0.5;
+}
+
+.theme-mole .arena::after,
+.theme-treasure .arena::after {
+  content: "";
+  position: absolute;
+  inset: 36px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent), transparent 55%) 0 18px, transparent 19px);
+  background-size: 96px 76px;
+  opacity: 0.44;
+}
+
+.theme-rocket .arena::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 38%;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent), transparent 80%));
+}
+
+.theme-pirate .arena::after,
+.theme-snow .arena::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 42%;
+  background: repeating-linear-gradient(-8deg, color-mix(in srgb, var(--secondary), transparent 76%) 0 18px, transparent 18px 42px);
+  opacity: 0.65;
+}
+
+.board {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 10px;
+  align-content: center;
+  padding: 44px;
+}
+
+.player-card {
+  min-height: 86px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(7, 8, 12, 0.78);
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  padding: 10px;
+  transform: translateY(0) scale(1);
+  transition:
+    transform 360ms ease,
+    opacity 360ms ease,
+    filter 360ms ease,
+    border-color 360ms ease;
+}
+
+.player-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #050608;
+  font-size: 1.4rem;
+  font-weight: 1000;
+}
+
+.player-name {
+  max-width: 100%;
+  color: var(--text);
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-card.active {
+  border-color: color-mix(in srgb, var(--accent), white 10%);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent), transparent 78%);
+}
+
+.player-card.out {
+  opacity: 0.18;
+  filter: grayscale(1) blur(0.5px);
+  transform: translateY(18px) scale(0.92) rotate(-2deg);
+}
+
+.player-card.winner {
+  opacity: 1;
+  border-color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary), #050608 78%);
+  transform: scale(1.14);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--secondary), transparent 22%), 0 0 60px color-mix(in srgb, var(--secondary), transparent 48%);
+}
+
+.effect-layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.burst {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--secondary);
+  animation: burstAway 900ms ease-out forwards;
+}
+
+.winner-panel {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 26px;
+  width: min(520px, calc(100% - 48px));
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--secondary), transparent 20%);
+  border-radius: 8px;
+  background: rgba(5, 6, 8, 0.88);
+  padding: 18px;
+  text-align: center;
+  box-shadow: 0 22px 70px var(--shadow);
+}
+
+.winner-panel span {
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.winner-panel strong {
+  display: block;
+  margin: 4px 0;
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 1;
+}
+
+.winner-panel p {
+  margin: 0;
+  color: var(--secondary);
+  font-weight: 900;
+}
+
+@keyframes burstAway {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0.2);
+  }
+}
+
+@media (max-width: 860px) {
+  body {
+    overflow: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: 1fr;
+  }
+
+  textarea {
+    min-height: 130px;
+  }
+
+  .stage-panel {
+    min-height: 620px;
+  }
+
+  .board {
+    padding: 28px;
+    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+  }
+}
