@@ -6,24 +6,22 @@
     <title>랜덤 사다리 경주</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body class="theme-ladder">
+  <body>
     <main class="app-shell">
       <section class="control-panel" aria-label="게임 설정">
         <header class="brand">
-          <p>Random Game Console</p>
+          <p>Random Ladder Console</p>
           <h1>랜덤 사다리 경주</h1>
         </header>
 
-        <label class="name-input">
-          <span>참여자 명단</span>
-          <textarea id="namesInput" spellcheck="false"></textarea>
+        <label id="dropZone" class="drop-zone" for="fileInput">
+          <input id="fileInput" type="file" accept=".xlsx,.csv" />
+          <span class="drop-icon">↑</span>
+          <strong id="fileName">엑셀 파일 업로드</strong>
+          <small>이름 / 숫자 컬럼 필요, 숫자는 1~999</small>
         </label>
 
-        <div class="file-row">
-          <label class="file-button" for="fileInput">CSV 불러오기</label>
-          <input id="fileInput" type="file" accept=".csv,.txt" />
-          <button id="sampleButton" class="ghost-button" type="button">샘플</button>
-        </div>
+        <div id="errorBox" class="error-box" role="alert" hidden></div>
 
         <div class="stats">
           <div>
@@ -31,40 +29,60 @@
             <strong id="playerCount">0</strong>
           </div>
           <div>
-            <span>남은 인원</span>
-            <strong id="activeCount">0</strong>
+            <span>연결 Row</span>
+            <strong id="rungCount">0</strong>
+          </div>
+          <div>
+            <span>시작 Column</span>
+            <strong id="startColumn">--</strong>
+          </div>
+          <div>
+            <span>도착 Column</span>
+            <strong id="finishColumn">--</strong>
           </div>
         </div>
 
         <div class="actions">
-          <button id="startButton" class="primary-button" type="button">게임 시작</button>
+          <button id="sampleButton" class="ghost-button" type="button">샘플</button>
           <button id="resetButton" class="ghost-button" type="button">초기화</button>
         </div>
 
-        <p id="message" class="message">사다리가 접혀 있습니다</p>
+        <button id="goButton" class="primary-button" type="button" disabled>GO</button>
+
+        <p id="message" class="message">엑셀을 올리면 제출 순서대로 사다리가 생성됩니다.</p>
+
+        <div class="guide">
+          <span>입력 규칙</span>
+          <p>엑셀 행 순서가 제출 순서가 됩니다. 마지막 사람의 숫자는 오른쪽 Column이 없어 연결 Row를 만들지 않습니다.</p>
+        </div>
       </section>
 
       <section class="stage-panel" aria-label="사다리 보드">
         <div class="stage-top">
           <div>
-            <p>꼬불꼬불한 사다리 끝에서 한 명이 도착합니다</p>
-            <h2 id="stageTitle">사다리가 접혀 있습니다</h2>
+            <p>0~1000 높이의 Column 사이를 하트가 이동합니다</p>
+            <h2 id="stageTitle">사다리 대기 중</h2>
           </div>
-          <span id="stageBadge">사다리</span>
+          <span id="stageBadge">LADDER</span>
         </div>
 
-        <div id="arena" class="arena" aria-live="polite">
-          <div id="effectLayer" class="effect-layer"></div>
-          <div id="board" class="board"></div>
+        <div id="ladderViewport" class="ladder-viewport">
+          <div id="ladderBoard" class="ladder-board">
+            <svg id="ladderSvg" class="ladder-svg" aria-label="랜덤 사다리"></svg>
+            <div id="heart" class="heart" hidden>♥</div>
+            <div id="topLabels" class="top-labels"></div>
+            <div id="bottomLabels" class="bottom-labels"></div>
+          </div>
         </div>
 
-        <div class="winner-panel" id="winnerPanel" hidden>
+        <div id="winnerPanel" class="winner-panel" hidden>
           <span>오늘의 우승자</span>
           <strong id="winnerName">--</strong>
-          <p>도착 지점에 먼저 닿았습니다</p>
+          <p id="winnerDetail">사다리 끝에 도착했습니다</p>
         </div>
       </section>
     </main>
+
     <script src="app.js"></script>
   </body>
 </html>
