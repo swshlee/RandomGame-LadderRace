@@ -8,6 +8,7 @@ GitHub Pages:
 
 ```text
 https://swshlee.github.io/RandomGame-LadderRace/
+https://swshlee.github.io/RandomGame-LadderRace/?demo=1
 ```
 
 로컬에서는 `index.html`을 브라우저로 열거나 정적 서버로 실행하면 됩니다.
@@ -30,5 +31,6 @@ https://swshlee.github.io/RandomGame-LadderRace/
 ## 게임 진행
 
 파일을 업로드하면 사다리가 생성되고 `GO` 버튼이 활성화됩니다.
+샘플 데이터를 바로 확인하려면 `?demo=1` 주소로 접속합니다.
 `GO`를 누르면 참여자 수 안에서 랜덤 시작 Column이 뽑히고, 하트가 사다리를 타고 내려갑니다.
 하트가 마지막으로 도착한 Column의 사람이 우승자입니다.

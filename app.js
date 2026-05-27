@@ -12,6 +12,8 @@ const SAMPLE_ROWS = [
   ["강서준", 907],
   ["윤지우", 476],
   ["장하은", 135],
+  ["오준서", 829],
+  ["신아린", 563],
 ];
 
 const LADDER = {
@@ -65,6 +67,7 @@ init();
 function init() {
   bindEvents();
   renderEmpty();
+  loadDemoIfRequested();
 }
 
 function bindEvents() {
@@ -134,6 +137,13 @@ function loadSample() {
   dom.fileName.textContent = "샘플 데이터";
   applyRows([["이름", "숫자"], ...SAMPLE_ROWS]);
   setMessage("샘플 사다리가 생성되었습니다. GO를 눌러 시작 Column을 뽑으세요.");
+}
+
+function loadDemoIfRequested() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("demo") === "1") {
+    loadSample();
+  }
 }
 
 function applyRows(rows) {
