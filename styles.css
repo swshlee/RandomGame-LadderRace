@@ -343,7 +343,7 @@ button {
 .column-line.draw-in {
   stroke-dasharray: 820;
   stroke-dashoffset: 820;
-  animation: drawStroke 560ms cubic-bezier(0.16, 0.82, 0.22, 1) forwards;
+  animation: drawStroke 900ms cubic-bezier(0.16, 0.82, 0.22, 1) forwards;
 }
 
 .rung-line {
@@ -356,7 +356,7 @@ button {
 .rung-line.draw-in {
   stroke-dasharray: 260;
   stroke-dashoffset: 260;
-  animation: drawStroke 520ms cubic-bezier(0.16, 0.82, 0.22, 1) forwards;
+  animation: drawStroke 820ms cubic-bezier(0.16, 0.82, 0.22, 1) forwards;
 }
 
 .node-dot.pop-in,
@@ -364,7 +364,7 @@ button {
 .rung-label.pop-in {
   transform-box: fill-box;
   transform-origin: center;
-  animation: popIn 420ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
+  animation: popIn 680ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
 }
 
 .route-line {
@@ -438,6 +438,7 @@ button {
   width: 86px;
   transform: translateX(-50%);
   text-align: center;
+  will-change: transform, opacity;
 }
 
 .person-label.top {
@@ -478,7 +479,7 @@ button {
 }
 
 .person-label.label-in {
-  animation: labelDrop 460ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
+  animation: labelDrop 760ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
 }
 
 .winner-panel {

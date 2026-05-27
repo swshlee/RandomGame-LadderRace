@@ -271,15 +271,14 @@ function renderLadder(route = null, options = {}) {
   const visibleColumns = options.visibleColumns ?? count;
   const visibleRungs = options.visibleRungs ?? state.rungs.length;
   const visibleLabels = options.visibleLabels ?? count;
-  const animate = Boolean(options.animate);
   dom.ladderSvg.innerHTML = [
     renderAxis(state.boardWidth),
-    renderColumns(visibleColumns, animate),
-    renderRungs(visibleRungs, animate),
+    renderColumns(visibleColumns, options.animatedColumnIndex),
+    renderRungs(visibleRungs, options.animatedRungIndex),
     route ? renderRoutePath(route) : "",
   ].join("");
 
-  renderLabels(route?.winnerIndex ?? -1, visibleLabels, animate);
+  renderLabels(route?.winnerIndex ?? -1, visibleLabels, options.animatedLabelIndex);
   updateStatsAndControls();
   if (!state.running && state.ladderBuilt) {
     dom.stageTitle.textContent = "사다리 생성 완료";
@@ -319,32 +318,34 @@ function renderAxis(width) {
   return `<g aria-hidden="true">${lines}</g>`;
 }
 
-function renderColumns(visibleColumns = state.participants.length, animate = false) {
+function renderColumns(visibleColumns = state.participants.length, animatedColumnIndex = -1) {
   return state.participants
     .slice(0, visibleColumns)
     .map((participant, index) => {
       const x = xForColumn(index);
+      const animated = index === animatedColumnIndex;
       return `
-        <line class="column-line ${animate ? "draw-in" : ""}" x1="${x}" y1="${LADDER.topY}" x2="${x}" y2="${LADDER.bottomY}" />
-        <circle class="node-dot ${animate ? "pop-in" : ""}" cx="${x}" cy="${LADDER.topY}" r="8" fill="#39d4ff" />
-        <circle class="node-dot ${animate ? "pop-in" : ""}" cx="${x}" cy="${LADDER.bottomY}" r="8" fill="#55d68b" />
+        <line class="column-line ${animated ? "draw-in" : ""}" x1="${round(x)}" y1="${LADDER.topY}" x2="${round(x)}" y2="${LADDER.bottomY}" />
+        <circle class="node-dot ${animated ? "pop-in" : ""}" cx="${round(x)}" cy="${LADDER.topY}" r="8" fill="#39d4ff" />
+        <circle class="node-dot ${animated ? "pop-in" : ""}" cx="${round(x)}" cy="${LADDER.bottomY}" r="8" fill="#55d68b" />
       `;
     })
     .join("");
 }
 
-function renderRungs(visibleRungs = state.rungs.length, animate = false) {
+function renderRungs(visibleRungs = state.rungs.length, animatedRungIndex = -1) {
   return state.rungs
     .slice(0, visibleRungs)
-    .map((rung) => {
+    .map((rung, index) => {
       const x1 = xForColumn(rung.left);
       const x2 = xForColumn(rung.right);
       const y = yForValue(rung.value);
       const labelX = (x1 + x2) / 2;
+      const animated = index === animatedRungIndex;
       return `
-        <line class="rung-line ${animate ? "draw-in" : ""}" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" />
-        <rect class="rung-pill ${animate ? "pop-in" : ""}" x="${labelX - 24}" y="${y - 15}" width="48" height="24" rx="12" />
-        <text class="rung-label ${animate ? "pop-in" : ""}" x="${labelX}" y="${y + 5}" text-anchor="middle">${rung.value}</text>
+        <line class="rung-line ${animated ? "draw-in" : ""}" x1="${round(x1)}" y1="${round(y)}" x2="${round(x2)}" y2="${round(y)}" />
+        <rect class="rung-pill ${animated ? "pop-in" : ""}" x="${round(labelX - 24)}" y="${round(y - 15)}" width="48" height="24" rx="12" />
+        <text class="rung-label ${animated ? "pop-in" : ""}" x="${round(labelX)}" y="${round(y + 5)}" text-anchor="middle">${rung.value}</text>
       `;
     })
     .join("");
@@ -354,13 +355,14 @@ function renderRoutePath(route) {
   return `<path id="routePath" class="route-line" d="${route.path}" />`;
 }
 
-function renderLabels(winnerIndex, visibleLabels = state.participants.length, animate = false) {
+function renderLabels(winnerIndex, visibleLabels = state.participants.length, animatedLabelIndex = -1) {
   dom.topLabels.innerHTML = state.participants
     .slice(0, visibleLabels)
     .map((participant, index) => {
       const x = xForColumn(index);
-  return `
-        <div class="person-label top ${animate ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${x}px">
+      const animated = index === animatedLabelIndex;
+      return `
+        <div class="person-label top ${animated ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px">
           <span>${escapeHtml(participant.name)}</span>
           <small>${index + 1}번 Column</small>
         </div>
@@ -373,7 +375,7 @@ function renderLabels(winnerIndex, visibleLabels = state.participants.length, an
     .map((participant, index) => {
       const x = xForColumn(index);
       return `
-        <div class="person-label bottom ${winnerIndex === index ? "winner" : ""}" style="left:${x}px">
+        <div class="person-label bottom ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px">
           <span>${escapeHtml(participant.name)}</span>
           <small>${index + 1}번 도착</small>
         </div>
@@ -410,10 +412,11 @@ async function buildLadderWithAnimation() {
       visibleLabels: index + 1,
       visibleColumns: index + 1,
       visibleRungs: 0,
-      animate: true,
+      animatedLabelIndex: index,
+      animatedColumnIndex: index,
     });
     setMessage(`${index + 1}번 Column - ${participant.name} 생성 중`);
-    await wait(240);
+    await wait(720);
   }
 
   dom.stageTitle.textContent = "연결 Row 생성 중";
@@ -426,10 +429,10 @@ async function buildLadderWithAnimation() {
       visibleLabels: state.participants.length,
       visibleColumns: state.participants.length,
       visibleRungs: index + 1,
-      animate: true,
+      animatedRungIndex: index,
     });
     setMessage(`${rung.owner}님의 숫자 ${rung.value}에서 오른쪽 Column으로 연결`);
-    await wait(260);
+    await wait(680);
   }
 
   state.ladderBuilt = true;
