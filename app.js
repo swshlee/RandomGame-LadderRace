@@ -21,7 +21,7 @@ const LADDER = {
   maxValue: 999,
   axisMin: 0,
   axisMax: 1000,
-  topY: 96,
+  topY: 140,
   bottomY: 900,
   minBoardWidth: 980,
   columnGap: 94,
@@ -35,6 +35,7 @@ const dom = {
   errorBox: document.getElementById("errorBox"),
   sampleButton: document.getElementById("sampleButton"),
   resetButton: document.getElementById("resetButton"),
+  buildButton: document.getElementById("buildButton"),
   goButton: document.getElementById("goButton"),
   playerCount: document.getElementById("playerCount"),
   rungCount: document.getElementById("rungCount"),
@@ -57,6 +58,8 @@ const state = {
   participants: [],
   rungs: [],
   boardWidth: LADDER.minBoardWidth,
+  ladderBuilt: false,
+  building: false,
   running: false,
   token: 0,
   route: null,
@@ -102,6 +105,7 @@ function bindEvents() {
 
   dom.sampleButton.addEventListener("click", loadSample);
   dom.resetButton.addEventListener("click", resetGame);
+  dom.buildButton.addEventListener("click", buildLadderWithAnimation);
   dom.goButton.addEventListener("click", startRun);
   window.addEventListener("resize", positionHeartAtStart);
 }
@@ -119,7 +123,7 @@ async function loadFile(file) {
   try {
     const rows = await parseInputFile(file);
     applyRows(rows);
-    setMessage(`${state.participants.length}명이 제출 순서대로 Column이 되었습니다.`);
+    setMessage(`${state.participants.length}명이 준비됐습니다. 게임시작을 누르면 사다리가 만들어집니다.`);
   } catch (error) {
     state.participants = [];
     state.rungs = [];
@@ -136,7 +140,7 @@ function loadSample() {
   dom.fileInput.value = "";
   dom.fileName.textContent = "샘플 데이터";
   applyRows([["이름", "숫자"], ...SAMPLE_ROWS]);
-  setMessage("샘플 사다리가 생성되었습니다. GO를 눌러 시작 Column을 뽑으세요.");
+  setMessage("샘플 데이터 10명이 준비됐습니다. 게임시작을 눌러 사다리를 만드세요.");
 }
 
 function loadDemoIfRequested() {
@@ -151,6 +155,8 @@ function applyRows(rows) {
   state.participants = parsed.participants;
   state.rungs = buildRungs(state.participants);
   state.route = null;
+  state.ladderBuilt = false;
+  state.building = false;
   dom.startColumn.textContent = "--";
   dom.finishColumn.textContent = "--";
   dom.winnerPanel.hidden = true;
@@ -162,7 +168,7 @@ function applyRows(rows) {
     clearError();
   }
 
-  renderLadder();
+  renderPreparedLadder();
 }
 
 function normalizeLadderRows(rows) {
@@ -229,6 +235,8 @@ function renderEmpty() {
   state.participants = [];
   state.rungs = [];
   state.route = null;
+  state.ladderBuilt = false;
+  state.building = false;
   state.boardWidth = LADDER.minBoardWidth;
   dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
@@ -239,33 +247,63 @@ function renderEmpty() {
   dom.rungCount.textContent = "0";
   dom.startColumn.textContent = "--";
   dom.finishColumn.textContent = "--";
+  dom.buildButton.disabled = true;
+  dom.goButton.hidden = true;
   dom.goButton.disabled = true;
+  dom.fileInput.disabled = false;
+  dom.sampleButton.disabled = false;
   dom.heart.hidden = true;
   dom.winnerPanel.hidden = true;
   dom.stageTitle.textContent = "사다리 대기 중";
 }
 
-function renderLadder(route = null) {
+function renderPreparedLadder() {
+  updateBoardSize();
+  dom.ladderSvg.innerHTML = renderAxis(state.boardWidth);
+  renderLabels(-1, 0);
+  updateStatsAndControls();
+  dom.stageTitle.textContent = "참가자 준비 완료";
+}
+
+function renderLadder(route = null, options = {}) {
   const count = state.participants.length;
-  state.boardWidth = Math.max(LADDER.minBoardWidth, LADDER.marginX * 2 + (count - 1) * LADDER.columnGap);
-  dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
-  dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
+  updateBoardSize();
+  const visibleColumns = options.visibleColumns ?? count;
+  const visibleRungs = options.visibleRungs ?? state.rungs.length;
+  const visibleLabels = options.visibleLabels ?? count;
+  const animate = Boolean(options.animate);
   dom.ladderSvg.innerHTML = [
     renderAxis(state.boardWidth),
-    renderColumns(),
-    renderRungs(),
+    renderColumns(visibleColumns, animate),
+    renderRungs(visibleRungs, animate),
     route ? renderRoutePath(route) : "",
   ].join("");
 
-  renderLabels(route?.winnerIndex ?? -1);
-  dom.playerCount.textContent = formatNumber(count);
-  dom.rungCount.textContent = formatNumber(state.rungs.length);
-  dom.goButton.disabled = state.running || count < 2;
-  dom.stageTitle.textContent = "사다리 생성 완료";
+  renderLabels(route?.winnerIndex ?? -1, visibleLabels, animate);
+  updateStatsAndControls();
+  if (!state.running && state.ladderBuilt) {
+    dom.stageTitle.textContent = "사다리 생성 완료";
+  }
 
   if (route) {
     prepareRoutePath();
   }
+}
+
+function updateBoardSize() {
+  const count = Math.max(1, state.participants.length);
+  state.boardWidth = Math.max(LADDER.minBoardWidth, LADDER.marginX * 2 + (count - 1) * LADDER.columnGap);
+  dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
+  dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
+}
+
+function updateStatsAndControls() {
+  const count = state.participants.length;
+  dom.playerCount.textContent = formatNumber(count);
+  dom.rungCount.textContent = formatNumber(state.rungs.length);
+  dom.buildButton.disabled = state.running || state.building || state.ladderBuilt || count < 2;
+  dom.goButton.hidden = !state.ladderBuilt || state.running || state.building;
+  dom.goButton.disabled = !state.ladderBuilt || state.running || state.building;
 }
 
 function renderAxis(width) {
@@ -281,30 +319,32 @@ function renderAxis(width) {
   return `<g aria-hidden="true">${lines}</g>`;
 }
 
-function renderColumns() {
+function renderColumns(visibleColumns = state.participants.length, animate = false) {
   return state.participants
+    .slice(0, visibleColumns)
     .map((participant, index) => {
       const x = xForColumn(index);
       return `
-        <line class="column-line" x1="${x}" y1="${LADDER.topY}" x2="${x}" y2="${LADDER.bottomY}" />
-        <circle cx="${x}" cy="${LADDER.topY}" r="8" fill="#39d4ff" />
-        <circle cx="${x}" cy="${LADDER.bottomY}" r="8" fill="#55d68b" />
+        <line class="column-line ${animate ? "draw-in" : ""}" x1="${x}" y1="${LADDER.topY}" x2="${x}" y2="${LADDER.bottomY}" />
+        <circle class="node-dot ${animate ? "pop-in" : ""}" cx="${x}" cy="${LADDER.topY}" r="8" fill="#39d4ff" />
+        <circle class="node-dot ${animate ? "pop-in" : ""}" cx="${x}" cy="${LADDER.bottomY}" r="8" fill="#55d68b" />
       `;
     })
     .join("");
 }
 
-function renderRungs() {
+function renderRungs(visibleRungs = state.rungs.length, animate = false) {
   return state.rungs
+    .slice(0, visibleRungs)
     .map((rung) => {
       const x1 = xForColumn(rung.left);
       const x2 = xForColumn(rung.right);
       const y = yForValue(rung.value);
       const labelX = (x1 + x2) / 2;
       return `
-        <line class="rung-line" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" />
-        <rect class="rung-pill" x="${labelX - 24}" y="${y - 15}" width="48" height="24" rx="12" />
-        <text class="rung-label" x="${labelX}" y="${y + 5}" text-anchor="middle">${rung.value}</text>
+        <line class="rung-line ${animate ? "draw-in" : ""}" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" />
+        <rect class="rung-pill ${animate ? "pop-in" : ""}" x="${labelX - 24}" y="${y - 15}" width="48" height="24" rx="12" />
+        <text class="rung-label ${animate ? "pop-in" : ""}" x="${labelX}" y="${y + 5}" text-anchor="middle">${rung.value}</text>
       `;
     })
     .join("");
@@ -314,12 +354,13 @@ function renderRoutePath(route) {
   return `<path id="routePath" class="route-line" d="${route.path}" />`;
 }
 
-function renderLabels(winnerIndex) {
+function renderLabels(winnerIndex, visibleLabels = state.participants.length, animate = false) {
   dom.topLabels.innerHTML = state.participants
+    .slice(0, visibleLabels)
     .map((participant, index) => {
       const x = xForColumn(index);
-      return `
-        <div class="person-label top ${winnerIndex === index ? "winner" : ""}" style="left:${x}px">
+  return `
+        <div class="person-label top ${animate ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${x}px">
           <span>${escapeHtml(participant.name)}</span>
           <small>${index + 1}번 Column</small>
         </div>
@@ -328,6 +369,7 @@ function renderLabels(winnerIndex) {
     .join("");
 
   dom.bottomLabels.innerHTML = state.participants
+    .slice(0, state.ladderBuilt || winnerIndex >= 0 ? state.participants.length : 0)
     .map((participant, index) => {
       const x = xForColumn(index);
       return `
@@ -340,8 +382,67 @@ function renderLabels(winnerIndex) {
     .join("");
 }
 
+async function buildLadderWithAnimation() {
+  if (state.running || state.building || state.participants.length < 2) {
+    return;
+  }
+
+  state.token += 1;
+  const token = state.token;
+  state.building = true;
+  state.ladderBuilt = false;
+  state.route = null;
+  dom.winnerPanel.hidden = true;
+  dom.heart.hidden = true;
+  dom.startColumn.textContent = "--";
+  dom.finishColumn.textContent = "--";
+  dom.fileInput.disabled = true;
+  dom.sampleButton.disabled = true;
+  updateStatsAndControls();
+
+  dom.stageTitle.textContent = "참가자 Column 생성 중";
+  for (let index = 0; index < state.participants.length; index += 1) {
+    if (token !== state.token) {
+      return;
+    }
+    const participant = state.participants[index];
+    renderLadder(null, {
+      visibleLabels: index + 1,
+      visibleColumns: index + 1,
+      visibleRungs: 0,
+      animate: true,
+    });
+    setMessage(`${index + 1}번 Column - ${participant.name} 생성 중`);
+    await wait(240);
+  }
+
+  dom.stageTitle.textContent = "연결 Row 생성 중";
+  for (let index = 0; index < state.rungs.length; index += 1) {
+    if (token !== state.token) {
+      return;
+    }
+    const rung = state.rungs[index];
+    renderLadder(null, {
+      visibleLabels: state.participants.length,
+      visibleColumns: state.participants.length,
+      visibleRungs: index + 1,
+      animate: true,
+    });
+    setMessage(`${rung.owner}님의 숫자 ${rung.value}에서 오른쪽 Column으로 연결`);
+    await wait(260);
+  }
+
+  state.ladderBuilt = true;
+  state.building = false;
+  dom.fileInput.disabled = false;
+  dom.sampleButton.disabled = false;
+  renderLadder();
+  dom.stageTitle.textContent = "사다리 생성 완료";
+  setMessage("사다리가 완성됐습니다. GO를 누르면 하트가 출발합니다.");
+}
+
 async function startRun() {
-  if (state.running || state.participants.length < 2) {
+  if (state.running || state.building || !state.ladderBuilt || state.participants.length < 2) {
     return;
   }
 
@@ -349,6 +450,7 @@ async function startRun() {
   state.token += 1;
   const token = state.token;
   dom.goButton.disabled = true;
+  updateStatsAndControls();
   dom.winnerPanel.hidden = true;
   clearError();
 
@@ -461,7 +563,6 @@ function revealWinner(route) {
   state.running = false;
   renderLadder(route);
   positionHeartAtStart();
-  dom.goButton.disabled = false;
   dom.finishColumn.textContent = `${route.winnerIndex + 1}`;
   dom.winnerName.textContent = route.winner.name;
   dom.winnerDetail.textContent = `${route.startIndex + 1}번 Column에서 출발해 ${route.winnerIndex + 1}번 Column에 도착했습니다.`;
@@ -474,7 +575,11 @@ function resetGame() {
   state.running = false;
   state.token += 1;
   state.route = null;
+  state.ladderBuilt = false;
+  state.building = false;
   dom.fileInput.value = "";
+  dom.fileInput.disabled = false;
+  dom.sampleButton.disabled = false;
   dom.fileName.textContent = "엑셀 파일 업로드";
   clearError();
   renderEmpty();
@@ -829,6 +934,10 @@ function formatNumber(value) {
 
 function setMessage(text) {
   dom.message.textContent = text;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function setError(message) {

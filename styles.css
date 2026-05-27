@@ -198,7 +198,8 @@ button {
 }
 
 .primary-button,
-.ghost-button {
+.ghost-button,
+.go-button {
   min-height: 46px;
   border-radius: 8px;
   font-weight: 1000;
@@ -211,11 +212,24 @@ button {
   font-size: 1.15rem;
 }
 
+.go-button {
+  min-height: 58px;
+  border: 1px solid var(--cyan);
+  background: var(--cyan);
+  color: var(--black);
+  font-size: 1.48rem;
+  letter-spacing: 0;
+  box-shadow: 0 0 28px rgba(57, 212, 255, 0.3);
+  animation: goPulse 1100ms ease-in-out infinite;
+}
+
 .primary-button:disabled,
-.ghost-button:disabled {
+.ghost-button:disabled,
+.go-button:disabled {
   cursor: not-allowed;
   filter: grayscale(0.8);
   opacity: 0.48;
+  animation: none;
 }
 
 .ghost-button {
@@ -326,11 +340,31 @@ button {
   stroke-linecap: round;
 }
 
+.column-line.draw-in {
+  stroke-dasharray: 820;
+  stroke-dashoffset: 820;
+  animation: drawStroke 560ms cubic-bezier(0.16, 0.82, 0.22, 1) forwards;
+}
+
 .rung-line {
   stroke: var(--accent);
   stroke-width: 4;
   stroke-linecap: round;
   filter: drop-shadow(0 0 10px rgba(255, 184, 61, 0.3));
+}
+
+.rung-line.draw-in {
+  stroke-dasharray: 260;
+  stroke-dashoffset: 260;
+  animation: drawStroke 520ms cubic-bezier(0.16, 0.82, 0.22, 1) forwards;
+}
+
+.node-dot.pop-in,
+.rung-pill.pop-in,
+.rung-label.pop-in {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: popIn 420ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
 }
 
 .route-line {
@@ -407,7 +441,7 @@ button {
 }
 
 .person-label.top {
-  top: 18px;
+  top: 30px;
 }
 
 .person-label.bottom {
@@ -441,6 +475,10 @@ button {
   background: rgba(85, 214, 139, 0.2);
   color: #d9ffe9;
   box-shadow: 0 0 24px rgba(85, 214, 139, 0.35);
+}
+
+.person-label.label-in {
+  animation: labelDrop 460ms cubic-bezier(0.16, 0.82, 0.22, 1) both;
 }
 
 .winner-panel {
@@ -480,6 +518,46 @@ button {
 @keyframes drawRoute {
   to {
     stroke-dashoffset: 0;
+  }
+}
+
+@keyframes drawStroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes labelDrop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -14px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes goPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 24px rgba(57, 212, 255, 0.28);
+  }
+  50% {
+    transform: scale(1.025);
+    box-shadow: 0 0 40px rgba(57, 212, 255, 0.48);
   }
 }
 
