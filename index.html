@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>랜덤 사다리 경주</title>
-    <link rel="stylesheet" href="styles.css?v=smoothbuild2" />
+    <link rel="stylesheet" href="styles.css?v=smoothbuild3" />
   </head>
   <body>
     <main class="app-shell">
@@ -48,8 +48,6 @@
         </div>
 
         <button id="buildButton" class="primary-button" type="button" disabled>게임시작</button>
-        <button id="goButton" class="go-button" type="button" hidden>GO</button>
-
         <p id="message" class="message">엑셀을 올리면 제출 순서대로 사다리가 생성됩니다.</p>
 
         <div class="guide">
@@ -67,12 +65,18 @@
           <span id="stageBadge">LADDER</span>
         </div>
 
+        <div class="stage-action-bar" aria-live="polite">
+          <button id="goButton" class="go-button" type="button" hidden>GO</button>
+        </div>
+
         <div id="ladderViewport" class="ladder-viewport">
           <div id="ladderBoard" class="ladder-board">
-            <svg id="ladderSvg" class="ladder-svg" aria-label="랜덤 사다리"></svg>
-            <div id="heart" class="heart" hidden>♥</div>
-            <div id="topLabels" class="top-labels"></div>
-            <div id="bottomLabels" class="bottom-labels"></div>
+            <div id="ladderContent" class="ladder-content">
+              <svg id="ladderSvg" class="ladder-svg" aria-label="랜덤 사다리"></svg>
+              <div id="heart" class="heart" hidden>♥</div>
+              <div id="topLabels" class="top-labels"></div>
+              <div id="bottomLabels" class="bottom-labels"></div>
+            </div>
           </div>
         </div>
 
@@ -84,6 +88,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=smoothbuild2"></script>
+    <script src="app.js?v=smoothbuild3"></script>
   </body>
 </html>

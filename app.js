@@ -24,8 +24,11 @@ const LADDER = {
   topY: 140,
   bottomY: 900,
   minBoardWidth: 980,
+  boardHeight: 760,
   columnGap: 94,
   marginX: 76,
+  buildMaxMs: 5000,
+  runZoom: 1.58,
 };
 
 const dom = {
@@ -45,6 +48,7 @@ const dom = {
   stageTitle: document.getElementById("stageTitle"),
   ladderViewport: document.getElementById("ladderViewport"),
   ladderBoard: document.getElementById("ladderBoard"),
+  ladderContent: document.getElementById("ladderContent"),
   ladderSvg: document.getElementById("ladderSvg"),
   heart: document.getElementById("heart"),
   topLabels: document.getElementById("topLabels"),
@@ -61,8 +65,10 @@ const state = {
   ladderBuilt: false,
   building: false,
   running: false,
+  gameActive: false,
   token: 0,
   route: null,
+  heartPoint: null,
 };
 
 init();
@@ -155,12 +161,16 @@ function applyRows(rows) {
   state.participants = parsed.participants;
   state.rungs = buildRungs(state.participants);
   state.route = null;
+  state.heartPoint = null;
   state.ladderBuilt = false;
   state.building = false;
+  state.gameActive = false;
   dom.startColumn.textContent = "--";
   dom.finishColumn.textContent = "--";
   dom.winnerPanel.hidden = true;
   dom.heart.hidden = true;
+  dom.heart.classList.remove("running");
+  setBoardZoom(1);
 
   if (parsed.invalidRows.length > 0) {
     setError(`${parsed.invalidRows.length}개 행은 이름 또는 1~999 정수 숫자가 맞지 않아 제외했습니다.`);
@@ -235,10 +245,15 @@ function renderEmpty() {
   state.participants = [];
   state.rungs = [];
   state.route = null;
+  state.heartPoint = null;
   state.ladderBuilt = false;
   state.building = false;
+  state.gameActive = false;
   state.boardWidth = LADDER.minBoardWidth;
+  syncStageState();
+  setBoardZoom(1);
   dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
+  dom.ladderBoard.style.setProperty("--board-height", `${LADDER.boardHeight}px`);
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
   dom.ladderSvg.innerHTML = renderAxis(state.boardWidth);
   dom.topLabels.innerHTML = "";
@@ -253,6 +268,7 @@ function renderEmpty() {
   dom.fileInput.disabled = false;
   dom.sampleButton.disabled = false;
   dom.heart.hidden = true;
+  dom.heart.classList.remove("running");
   dom.winnerPanel.hidden = true;
   dom.stageTitle.textContent = "사다리 대기 중";
 }
@@ -268,17 +284,14 @@ function renderPreparedLadder() {
 function renderLadder(route = null, options = {}) {
   const count = state.participants.length;
   updateBoardSize();
-  const visibleColumns = options.visibleColumns ?? count;
-  const visibleRungs = options.visibleRungs ?? state.rungs.length;
-  const visibleLabels = options.visibleLabels ?? count;
   dom.ladderSvg.innerHTML = [
     renderAxis(state.boardWidth),
-    renderColumns(visibleColumns, options.animatedColumnIndex),
-    renderRungs(visibleRungs, options.animatedRungIndex),
+    renderColumns(options),
+    renderRungs(options),
     route ? renderRoutePath(route) : "",
   ].join("");
 
-  renderLabels(route?.winnerIndex ?? -1, visibleLabels, options.animatedLabelIndex);
+  renderLabels(route?.winnerIndex ?? -1, options);
   updateStatsAndControls();
   if (!state.running && state.ladderBuilt) {
     dom.stageTitle.textContent = "사다리 생성 완료";
@@ -293,16 +306,18 @@ function updateBoardSize() {
   const count = Math.max(1, state.participants.length);
   state.boardWidth = Math.max(LADDER.minBoardWidth, LADDER.marginX * 2 + (count - 1) * LADDER.columnGap);
   dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
+  dom.ladderBoard.style.setProperty("--board-height", `${LADDER.boardHeight}px`);
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
 }
 
 function updateStatsAndControls() {
+  syncStageState();
   const count = state.participants.length;
   dom.playerCount.textContent = formatNumber(count);
   dom.rungCount.textContent = formatNumber(state.rungs.length);
   dom.buildButton.disabled = state.running || state.building || state.ladderBuilt || count < 2;
-  dom.goButton.hidden = !state.ladderBuilt || state.running || state.building;
-  dom.goButton.disabled = !state.ladderBuilt || state.running || state.building;
+  dom.goButton.hidden = !state.gameActive || !state.ladderBuilt || state.running || state.building;
+  dom.goButton.disabled = !state.gameActive || !state.ladderBuilt || state.running || state.building;
 }
 
 function renderAxis(width) {
@@ -318,12 +333,16 @@ function renderAxis(width) {
   return `<g aria-hidden="true">${lines}</g>`;
 }
 
-function renderColumns(visibleColumns = state.participants.length, animatedColumnIndex = -1) {
+function renderColumns(options = {}) {
+  const visibleIndexes = visibleIndexesFor(state.participants.length, options.visibleColumns, options.visibleColumnIndexes);
+  const animatedIndexes = animatedIndexesFor(options.animatedColumnIndex, options.animatedColumnIndexes);
   return state.participants
-    .slice(0, visibleColumns)
     .map((participant, index) => {
+      if (!visibleIndexes.has(index)) {
+        return "";
+      }
       const x = xForColumn(index);
-      const animated = index === animatedColumnIndex;
+      const animated = animatedIndexes.has(index);
       return `
         <line class="column-line ${animated ? "draw-in" : ""}" x1="${round(x)}" y1="${LADDER.topY}" x2="${round(x)}" y2="${LADDER.bottomY}" />
         <circle class="node-dot ${animated ? "pop-in" : ""}" cx="${round(x)}" cy="${LADDER.topY}" r="8" fill="#39d4ff" />
@@ -333,19 +352,25 @@ function renderColumns(visibleColumns = state.participants.length, animatedColum
     .join("");
 }
 
-function renderRungs(visibleRungs = state.rungs.length, animatedRungIndex = -1) {
+function renderRungs(options = {}) {
+  const visibleIndexes = visibleIndexesFor(state.rungs.length, options.visibleRungs, options.visibleRungIndexes);
+  const animatedIndexes = animatedIndexesFor(options.animatedRungIndex, options.animatedRungIndexes);
   return state.rungs
-    .slice(0, visibleRungs)
     .map((rung, index) => {
+      if (!visibleIndexes.has(index)) {
+        return "";
+      }
       const x1 = xForColumn(rung.left);
       const x2 = xForColumn(rung.right);
       const y = yForValue(rung.value);
       const labelX = (x1 + x2) / 2;
-      const animated = index === animatedRungIndex;
+      const animated = animatedIndexes.has(index);
+      const label = shortLabel(rung.owner, 8);
+      const labelWidth = labelWidthForText(label);
       return `
         <line class="rung-line ${animated ? "draw-in" : ""}" x1="${round(x1)}" y1="${round(y)}" x2="${round(x2)}" y2="${round(y)}" />
-        <rect class="rung-pill ${animated ? "pop-in" : ""}" x="${round(labelX - 24)}" y="${round(y - 15)}" width="48" height="24" rx="12" />
-        <text class="rung-label ${animated ? "pop-in" : ""}" x="${round(labelX)}" y="${round(y + 5)}" text-anchor="middle">${rung.value}</text>
+        <rect class="rung-pill ${animated ? "pop-in" : ""}" x="${round(labelX - labelWidth / 2)}" y="${round(y - 15)}" width="${labelWidth}" height="24" rx="12" />
+        <text class="rung-label ${animated ? "pop-in" : ""}" x="${round(labelX)}" y="${round(y + 5)}" text-anchor="middle">${escapeHtml(label)}</text>
       `;
     })
     .join("");
@@ -355,12 +380,17 @@ function renderRoutePath(route) {
   return `<path id="routePath" class="route-line" d="${route.path}" />`;
 }
 
-function renderLabels(winnerIndex, visibleLabels = state.participants.length, animatedLabelIndex = -1) {
+function renderLabels(winnerIndex, options = {}) {
+  const visibleLabels = options.visibleLabels ?? state.participants.length;
+  const visibleIndexes = visibleIndexesFor(state.participants.length, visibleLabels, options.visibleLabelIndexes);
+  const animatedIndexes = animatedIndexesFor(options.animatedLabelIndex, options.animatedLabelIndexes);
   dom.topLabels.innerHTML = state.participants
-    .slice(0, visibleLabels)
     .map((participant, index) => {
+      if (!visibleIndexes.has(index)) {
+        return "";
+      }
       const x = xForColumn(index);
-      const animated = index === animatedLabelIndex;
+      const animated = animatedIndexes.has(index);
       return `
         <div class="person-label top ${animated ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px">
           <span>${escapeHtml(participant.name)}</span>
@@ -383,6 +413,73 @@ function renderLabels(winnerIndex, visibleLabels = state.participants.length, an
     .join("");
 }
 
+function visibleIndexesFor(total, visibleCount = total, visibleIndexes = null) {
+  if (Array.isArray(visibleIndexes)) {
+    return new Set(visibleIndexes);
+  }
+  const count = clampNumber(visibleCount, 0, total);
+  return new Set(Array.from({ length: count }, (_, index) => index));
+}
+
+function animatedIndexesFor(animatedIndex = -1, animatedIndexes = null) {
+  if (Array.isArray(animatedIndexes)) {
+    return new Set(animatedIndexes);
+  }
+  return animatedIndex >= 0 ? new Set([animatedIndex]) : new Set();
+}
+
+function createBuildBatches(columnCount, rungCount) {
+  const columnBatches = createRandomBatches(columnCount, Math.min(4, Math.max(1, Math.ceil(columnCount / 3))));
+  const rungStepBudget = Math.max(1, 10 - columnBatches.length);
+  const rungBatches = createRandomBatches(rungCount, Math.min(6, rungStepBudget));
+  const steps = [
+    ...columnBatches.map((columns) => ({ columns, rungs: [] })),
+    ...rungBatches.map((rungs) => ({ columns: [], rungs })),
+  ];
+  const duration = Math.min(560, Math.floor((LADDER.buildMaxMs - 600) / Math.max(1, steps.length)));
+  return steps.map((step) => ({ ...step, duration }));
+}
+
+function createRandomBatches(count, maxSteps) {
+  const remaining = shuffledIndexes(count);
+  const batches = [];
+  const stepLimit = Math.max(1, maxSteps);
+
+  while (remaining.length > 0 && batches.length < stepLimit) {
+    const stepsLeft = stepLimit - batches.length;
+    const minBatch = Math.ceil(remaining.length / stepsLeft);
+    const maxBatch = Math.min(remaining.length, Math.max(minBatch, minBatch + 3));
+    const batchSize = randomInt(minBatch, maxBatch);
+    batches.push(remaining.splice(0, batchSize));
+  }
+
+  if (remaining.length > 0) {
+    batches[batches.length - 1].push(...remaining);
+  }
+
+  return batches;
+}
+
+function shuffledIndexes(count) {
+  const indexes = Array.from({ length: count }, (_, index) => index);
+  for (let index = indexes.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(0, index);
+    [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
+  }
+  return indexes;
+}
+
+function buildBatchMessage(batch) {
+  const parts = [];
+  if (batch.columns.length > 0) {
+    parts.push(`Column ${batch.columns.length}개`);
+  }
+  if (batch.rungs.length > 0) {
+    parts.push(`연결 Row ${batch.rungs.length}개`);
+  }
+  return `${parts.join(", ")}를 동시에 생성 중입니다.`;
+}
+
 async function buildLadderWithAnimation() {
   if (state.running || state.building || state.participants.length < 2) {
     return;
@@ -392,46 +489,46 @@ async function buildLadderWithAnimation() {
   const token = state.token;
   state.building = true;
   state.ladderBuilt = false;
+  state.gameActive = true;
   state.route = null;
+  state.heartPoint = null;
+  setBoardZoom(1);
   dom.winnerPanel.hidden = true;
   dom.heart.hidden = true;
+  dom.heart.classList.remove("running");
   dom.startColumn.textContent = "--";
   dom.finishColumn.textContent = "--";
   dom.fileInput.disabled = true;
   dom.sampleButton.disabled = true;
   updateStatsAndControls();
 
-  dom.stageTitle.textContent = "참가자 Column 생성 중";
-  for (let index = 0; index < state.participants.length; index += 1) {
-    if (token !== state.token) {
-      return;
-    }
-    const participant = state.participants[index];
-    renderLadder(null, {
-      visibleLabels: index + 1,
-      visibleColumns: index + 1,
-      visibleRungs: 0,
-      animatedLabelIndex: index,
-      animatedColumnIndex: index,
-    });
-    setMessage(`${index + 1}번 Column - ${participant.name} 생성 중`);
-    await wait(720);
-  }
+  const visibleColumnIndexes = new Set();
+  const visibleLabelIndexes = new Set();
+  const visibleRungIndexes = new Set();
+  const batches = createBuildBatches(state.participants.length, state.rungs.length);
 
-  dom.stageTitle.textContent = "연결 Row 생성 중";
-  for (let index = 0; index < state.rungs.length; index += 1) {
+  dom.stageTitle.textContent = "사다리 빠른 생성 중";
+  for (const batch of batches) {
     if (token !== state.token) {
       return;
     }
-    const rung = state.rungs[index];
-    renderLadder(null, {
-      visibleLabels: state.participants.length,
-      visibleColumns: state.participants.length,
-      visibleRungs: index + 1,
-      animatedRungIndex: index,
+
+    batch.columns.forEach((index) => {
+      visibleColumnIndexes.add(index);
+      visibleLabelIndexes.add(index);
     });
-    setMessage(`${rung.owner}님의 숫자 ${rung.value}에서 오른쪽 Column으로 연결`);
-    await wait(680);
+    batch.rungs.forEach((index) => visibleRungIndexes.add(index));
+
+    renderLadder(null, {
+      visibleColumnIndexes: [...visibleColumnIndexes],
+      visibleLabelIndexes: [...visibleLabelIndexes],
+      visibleRungIndexes: [...visibleRungIndexes],
+      animatedColumnIndexes: batch.columns,
+      animatedLabelIndexes: batch.columns,
+      animatedRungIndexes: batch.rungs,
+    });
+    setMessage(buildBatchMessage(batch));
+    await wait(batch.duration);
   }
 
   state.ladderBuilt = true;
@@ -449,6 +546,7 @@ async function startRun() {
   }
 
   state.running = true;
+  state.gameActive = true;
   state.token += 1;
   const token = state.token;
   dom.goButton.disabled = true;
@@ -459,12 +557,20 @@ async function startRun() {
   const startIndex = randomInt(0, state.participants.length - 1);
   const route = calculateRoute(startIndex);
   state.route = route;
+  state.heartPoint = route.points[0];
   dom.startColumn.textContent = `${startIndex + 1}`;
   dom.finishColumn.textContent = "--";
   dom.stageTitle.textContent = `${startIndex + 1}번 Column에서 하트 출발`;
   setMessage(`${startIndex + 1}번 Column이 뽑혔습니다. 하트가 사다리를 내려갑니다.`);
 
   renderLadder(route);
+  setBoardZoom(1);
+  dom.heart.hidden = false;
+  await moveHeart(route.points[0], 0, { follow: true });
+  await zoomToHeart(route.points[0], token);
+  if (token !== state.token) {
+    return;
+  }
   await animateRoute(route, token);
 
   if (token !== state.token) {
@@ -516,7 +622,7 @@ async function animateRoute(route, token) {
 
   dom.heart.hidden = false;
   dom.heart.classList.add("running");
-  await moveHeart(route.points[0], 0);
+  await moveHeart(route.points[0], 0, { follow: true });
 
   for (let index = 1; index < route.points.length; index += 1) {
     if (token !== state.token) {
@@ -526,17 +632,20 @@ async function animateRoute(route, token) {
     const to = route.points[index];
     const distance = Math.hypot(to.x - from.x, to.y - from.y);
     const duration = clampNumber(Math.round(distance * 4.6), 240, 980);
-    await moveHeart(to, duration);
+    await moveHeart(to, duration, { follow: true });
   }
 }
 
-function moveHeart(point, duration) {
+function moveHeart(point, duration, options = {}) {
   return new Promise((resolve) => {
-    const boardRect = dom.ladderBoard.getBoundingClientRect();
-    const yPx = point.y * (boardRect.height / 1000);
+    state.heartPoint = point;
+    const yPx = point.y * (dom.ladderContent.clientHeight / 1000);
     dom.heart.style.transitionDuration = `${duration}ms`;
     dom.heart.style.left = `${point.x}px`;
     dom.heart.style.top = `${yPx}px`;
+    if (options.follow) {
+      followHeart(point, duration > 0 ? "smooth" : "auto");
+    }
     window.setTimeout(resolve, Math.max(20, duration));
   });
 }
@@ -550,21 +659,60 @@ function prepareRoutePath() {
   path.style.setProperty("--route-length", `${length}`);
 }
 
-function positionHeartAtStart() {
+function positionHeartAtStart(options = {}) {
   if (!state.route || dom.heart.hidden) {
     return;
   }
-  const point = last(state.route.points);
-  const boardRect = dom.ladderBoard.getBoundingClientRect();
+  const point = state.heartPoint || last(state.route.points);
   dom.heart.style.transitionDuration = "0ms";
   dom.heart.style.left = `${point.x}px`;
-  dom.heart.style.top = `${point.y * (boardRect.height / 1000)}px`;
+  dom.heart.style.top = `${point.y * (dom.ladderContent.clientHeight / 1000)}px`;
+  if (options.follow) {
+    followHeart(point, "smooth");
+  }
+}
+
+async function zoomToHeart(point, token) {
+  await wait(80);
+  if (token !== state.token) {
+    return;
+  }
+  setBoardZoom(LADDER.runZoom);
+  followHeart(point, "smooth");
+  await wait(900);
+}
+
+function followHeart(point, behavior = "smooth") {
+  const zoom = currentBoardZoom();
+  const contentHeight = dom.ladderContent.clientHeight || LADDER.boardHeight;
+  const x = point.x * zoom;
+  const y = point.y * (contentHeight / 1000) * zoom;
+  const maxLeft = Math.max(0, dom.ladderViewport.scrollWidth - dom.ladderViewport.clientWidth);
+  const maxTop = Math.max(0, dom.ladderViewport.scrollHeight - dom.ladderViewport.clientHeight);
+  const left = clampNumber(Math.round(x - dom.ladderViewport.clientWidth / 2), 0, maxLeft);
+  const top = clampNumber(Math.round(y - dom.ladderViewport.clientHeight / 2), 0, maxTop);
+  dom.ladderViewport.scrollTo({ left, top, behavior });
+}
+
+function setBoardZoom(value) {
+  dom.ladderBoard.style.setProperty("--board-zoom", `${value}`);
+}
+
+function currentBoardZoom() {
+  const value = Number.parseFloat(getComputedStyle(dom.ladderBoard).getPropertyValue("--board-zoom"));
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+function syncStageState() {
+  document.body.classList.toggle("panel-collapsed", state.gameActive);
 }
 
 function revealWinner(route) {
   state.running = false;
+  state.gameActive = false;
+  setBoardZoom(1);
   renderLadder(route);
-  positionHeartAtStart();
+  positionHeartAtStart({ follow: true });
   dom.finishColumn.textContent = `${route.winnerIndex + 1}`;
   dom.winnerName.textContent = route.winner.name;
   dom.winnerDetail.textContent = `${route.startIndex + 1}번 Column에서 출발해 ${route.winnerIndex + 1}번 Column에 도착했습니다.`;
@@ -577,8 +725,11 @@ function resetGame() {
   state.running = false;
   state.token += 1;
   state.route = null;
+  state.heartPoint = null;
   state.ladderBuilt = false;
   state.building = false;
+  state.gameActive = false;
+  setBoardZoom(1);
   dom.fileInput.value = "";
   dom.fileInput.disabled = false;
   dom.sampleButton.disabled = false;
@@ -932,6 +1083,16 @@ function round(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("ko-KR").format(value);
+}
+
+function shortLabel(value, maxLength) {
+  const text = String(value ?? "");
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function labelWidthForText(value) {
+  const textLength = String(value ?? "").length;
+  return clampNumber(44 + textLength * 11, 64, 128);
 }
 
 function setMessage(text) {
