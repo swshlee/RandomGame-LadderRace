@@ -768,11 +768,13 @@ async function zoomToHeart(point, token) {
     return;
   }
   setBoardZoom(LADDER.runZoom);
-  followHeart(point, "smooth");
-  await wait(LADDER.zoomSettleMs);
+  await holdCameraOnPoint(point, LADDER.zoomSettleMs);
+  if (token !== state.token) {
+    return;
+  }
 }
 
-function followHeart(point, behavior = "smooth") {
+function followHeart(point, behavior = "auto") {
   centerCameraAtPoint(point, behavior);
 }
 
@@ -808,6 +810,30 @@ function animateCameraBetween(fromPoint, toPoint, duration) {
       resolve();
     };
 
+    state.cameraFrame = window.requestAnimationFrame(step);
+  });
+}
+
+function holdCameraOnPoint(point, duration) {
+  cancelCameraFollow();
+  return new Promise((resolve) => {
+    state.cameraResolve = resolve;
+    const start = performance.now();
+
+    const step = (now) => {
+      centerCameraAtPoint(point);
+
+      if (now - start < duration) {
+        state.cameraFrame = window.requestAnimationFrame(step);
+        return;
+      }
+
+      state.cameraFrame = 0;
+      state.cameraResolve = null;
+      resolve();
+    };
+
+    centerCameraAtPoint(point);
     state.cameraFrame = window.requestAnimationFrame(step);
   });
 }

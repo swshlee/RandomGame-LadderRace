@@ -356,7 +356,7 @@ body.panel-collapsed .stage-top {
   background:
     linear-gradient(120deg, rgba(255, 255, 255, 0.06), transparent 38%),
     rgba(5, 6, 8, 0.48);
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   scrollbar-width: none;
 }
 
