@@ -364,7 +364,6 @@ function renderLabels(winnerIndex, visibleLabels = state.participants.length, an
       return `
         <div class="person-label top ${animated ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px">
           <span>${escapeHtml(participant.name)}</span>
-          <small>${index + 1}번 Column</small>
         </div>
       `;
     })
