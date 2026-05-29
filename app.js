@@ -65,8 +65,12 @@ const LADDER = {
   marginX: 76,
   fitPadding: 18,
   buildMaxMs: 5000,
-  runZoom: 1.58,
-  heartMsPerUnit: 6.2,
+  runZoom: 2.6,
+  zoomSettleMs: 1120,
+  heartMsPerUnit: 8.8,
+  minHeartSegmentMs: 180,
+  cameraFocusX: 0.5,
+  cameraFocusY: 0.42,
 };
 
 const dom = {
@@ -109,6 +113,10 @@ const state = {
   route: null,
   heartPoint: null,
   boardZoom: 1,
+  cameraFrame: 0,
+  cameraResolve: null,
+  routeFrame: 0,
+  routeResolve: null,
 };
 
 init();
@@ -205,6 +213,8 @@ function applyRows(rows) {
   state.ladderBuilt = false;
   state.building = false;
   state.gameActive = false;
+  cancelCameraFollow();
+  cancelRouteTrace();
   dom.startColumn.textContent = "--";
   dom.finishColumn.textContent = "--";
   dom.winnerPanel.hidden = true;
@@ -293,6 +303,8 @@ function renderEmpty() {
   state.gameActive = false;
   state.boardWidth = LADDER.minBoardWidth;
   state.boardHeight = LADDER.boardHeight;
+  cancelCameraFollow();
+  cancelRouteTrace();
   syncStageState();
   setBoardZoom(1);
   updateBoardSize();
@@ -602,6 +614,8 @@ async function startRun() {
   state.running = true;
   state.gameActive = true;
   state.token += 1;
+  cancelCameraFollow();
+  cancelRouteTrace();
   const token = state.token;
   dom.goButton.disabled = true;
   updateStatsAndControls();
@@ -673,12 +687,15 @@ async function animateRoute(route, token) {
   if (path) {
     path.style.setProperty("--route-length", `${length}`);
     path.style.setProperty("--route-duration", `${totalDuration}ms`);
-    path.classList.add("running");
+    path.style.strokeDasharray = `${length}`;
+    path.style.strokeDashoffset = `${length}`;
+    path.classList.remove("running");
   }
 
   dom.heart.hidden = false;
   dom.heart.classList.add("running");
   await moveHeart(route.points[0], 0, { follow: true });
+  animateRouteTrace(path, timings);
 
   for (const timing of timings) {
     if (token !== state.token) {
@@ -693,24 +710,34 @@ function routeSegmentTimings(route) {
     const from = route.points[index];
     const distance = Math.hypot(to.x - from.x, to.y - from.y);
     return {
+      from,
       to,
-      duration: Math.max(80, Math.round(distance * LADDER.heartMsPerUnit)),
+      distance,
+      duration: Math.max(LADDER.minHeartSegmentMs, Math.round(distance * LADDER.heartMsPerUnit)),
     };
   });
 }
 
-function moveHeart(point, duration, options = {}) {
-  return new Promise((resolve) => {
-    state.heartPoint = point;
-    const yPx = point.y * (dom.ladderContent.clientHeight / 1000);
-    dom.heart.style.transitionDuration = `${duration}ms`;
-    dom.heart.style.left = `${point.x}px`;
-    dom.heart.style.top = `${yPx}px`;
-    if (options.follow) {
-      followHeart(point, duration > 0 ? "smooth" : "auto");
-    }
-    window.setTimeout(resolve, Math.max(20, duration));
-  });
+async function moveHeart(point, duration, options = {}) {
+  const fromPoint = state.heartPoint || point;
+  state.heartPoint = point;
+  const yPx = point.y * (dom.ladderContent.clientHeight / 1000);
+  dom.heart.style.transitionDuration = `${duration}ms`;
+  dom.heart.style.left = `${point.x}px`;
+  dom.heart.style.top = `${yPx}px`;
+
+  if (!options.follow) {
+    await wait(Math.max(20, duration));
+    return;
+  }
+
+  if (duration <= 0) {
+    followHeart(point);
+    await wait(20);
+    return;
+  }
+
+  await animateCameraBetween(fromPoint, point, duration);
 }
 
 function prepareRoutePath() {
@@ -742,19 +769,125 @@ async function zoomToHeart(point, token) {
   }
   setBoardZoom(LADDER.runZoom);
   followHeart(point, "smooth");
-  await wait(900);
+  await wait(LADDER.zoomSettleMs);
 }
 
 function followHeart(point, behavior = "smooth") {
+  centerCameraAtPoint(point, behavior);
+}
+
+function centerCameraAtPoint(point, behavior = "auto") {
   const scale = currentBoardScale();
   const contentHeight = dom.ladderContent.clientHeight || LADDER.boardHeight;
   const x = point.x * scale;
   const y = point.y * (contentHeight / 1000) * scale;
   const maxLeft = Math.max(0, dom.ladderViewport.scrollWidth - dom.ladderViewport.clientWidth);
   const maxTop = Math.max(0, dom.ladderViewport.scrollHeight - dom.ladderViewport.clientHeight);
-  const left = clampNumber(Math.round(x - dom.ladderViewport.clientWidth / 2), 0, maxLeft);
-  const top = clampNumber(Math.round(y - dom.ladderViewport.clientHeight / 2), 0, maxTop);
+  const left = clampNumber(Math.round(x - dom.ladderViewport.clientWidth * LADDER.cameraFocusX), 0, maxLeft);
+  const top = clampNumber(Math.round(y - dom.ladderViewport.clientHeight * LADDER.cameraFocusY), 0, maxTop);
   dom.ladderViewport.scrollTo({ left, top, behavior });
+}
+
+function animateCameraBetween(fromPoint, toPoint, duration) {
+  cancelCameraFollow();
+  return new Promise((resolve) => {
+    state.cameraResolve = resolve;
+    const start = performance.now();
+
+    const step = (now) => {
+      const progress = clampNumber((now - start) / duration, 0, 1);
+      centerCameraAtPoint(interpolatePoint(fromPoint, toPoint, progress));
+
+      if (progress < 1) {
+        state.cameraFrame = window.requestAnimationFrame(step);
+        return;
+      }
+
+      state.cameraFrame = 0;
+      state.cameraResolve = null;
+      resolve();
+    };
+
+    state.cameraFrame = window.requestAnimationFrame(step);
+  });
+}
+
+function animateRouteTrace(path, timings) {
+  cancelRouteTrace();
+  if (!path || !path.getTotalLength || timings.length === 0) {
+    return Promise.resolve();
+  }
+
+  const pathLength = Math.ceil(path.getTotalLength());
+  const routeDistance = timings.reduce((sum, timing) => sum + timing.distance, 0);
+  const totalDuration = timings.reduce((sum, timing) => sum + timing.duration, 0);
+
+  path.style.strokeDasharray = `${pathLength}`;
+  path.style.strokeDashoffset = `${pathLength}`;
+
+  return new Promise((resolve) => {
+    state.routeResolve = resolve;
+    const start = performance.now();
+
+    const step = (now) => {
+      const elapsed = now - start;
+      const visibleDistance = routeVisibleDistance(timings, elapsed);
+      const visibleRatio = routeDistance > 0 ? visibleDistance / routeDistance : 1;
+      path.style.strokeDashoffset = `${Math.max(0, pathLength * (1 - visibleRatio))}`;
+
+      if (elapsed < totalDuration) {
+        state.routeFrame = window.requestAnimationFrame(step);
+        return;
+      }
+
+      path.style.strokeDashoffset = "0";
+      state.routeFrame = 0;
+      state.routeResolve = null;
+      resolve();
+    };
+
+    state.routeFrame = window.requestAnimationFrame(step);
+  });
+}
+
+function routeVisibleDistance(timings, elapsed) {
+  let remaining = elapsed;
+  let visibleDistance = 0;
+
+  for (const timing of timings) {
+    if (remaining >= timing.duration) {
+      visibleDistance += timing.distance;
+      remaining -= timing.duration;
+      continue;
+    }
+
+    const progress = clampNumber(remaining / timing.duration, 0, 1);
+    return visibleDistance + timing.distance * progress;
+  }
+
+  return timings.reduce((sum, timing) => sum + timing.distance, 0);
+}
+
+function cancelCameraFollow() {
+  if (state.cameraFrame) {
+    window.cancelAnimationFrame(state.cameraFrame);
+    state.cameraFrame = 0;
+  }
+  if (state.cameraResolve) {
+    state.cameraResolve();
+    state.cameraResolve = null;
+  }
+}
+
+function cancelRouteTrace() {
+  if (state.routeFrame) {
+    window.cancelAnimationFrame(state.routeFrame);
+    state.routeFrame = 0;
+  }
+  if (state.routeResolve) {
+    state.routeResolve();
+    state.routeResolve = null;
+  }
 }
 
 function setBoardZoom(value) {
@@ -797,6 +930,8 @@ function syncStageState() {
 function revealWinner(route) {
   state.running = false;
   state.gameActive = false;
+  cancelCameraFollow();
+  cancelRouteTrace();
   setBoardZoom(1);
   renderLadder(route);
   positionHeartAtStart({ follow: true });
@@ -811,6 +946,8 @@ function revealWinner(route) {
 function resetGame() {
   state.running = false;
   state.token += 1;
+  cancelCameraFollow();
+  cancelRouteTrace();
   state.route = null;
   state.heartPoint = null;
   state.ladderBuilt = false;
@@ -1200,6 +1337,13 @@ function pointsToPath(points) {
   return points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${round(point.x)} ${round(point.y)}`)
     .join(" ");
+}
+
+function interpolatePoint(fromPoint, toPoint, progress) {
+  return {
+    x: fromPoint.x + (toPoint.x - fromPoint.x) * progress,
+    y: fromPoint.y + (toPoint.y - fromPoint.y) * progress,
+  };
 }
 
 function last(values) {
