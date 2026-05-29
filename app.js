@@ -391,8 +391,9 @@ function renderLabels(winnerIndex, options = {}) {
       }
       const x = xForColumn(index);
       const animated = animatedIndexes.has(index);
+      const y = yPxForValue(LADDER.topY);
       return `
-        <div class="person-label top ${animated ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px">
+        <div class="person-label top ${animated ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px; top:${round(y)}px">
           <span>${escapeHtml(participant.name)}</span>
         </div>
       `;
@@ -1057,6 +1058,10 @@ function xForColumn(index) {
 function yForValue(value) {
   const ratio = clampNumber((value - LADDER.axisMin) / (LADDER.axisMax - LADDER.axisMin), 0, 1);
   return LADDER.topY + (LADDER.bottomY - LADDER.topY) * ratio;
+}
+
+function yPxForValue(value) {
+  return (value / (LADDER.axisMax - LADDER.axisMin)) * LADDER.boardHeight;
 }
 
 function pointsToPath(points) {
