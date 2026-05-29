@@ -3,18 +3,43 @@ const REQUIRED_HEADERS = {
   number: ["숫자", "번호", "사다리번호", "경매번호", "number", "value"],
 };
 
-const SAMPLE_ROWS = [
-  ["김도윤", 112],
-  ["이서연", 742],
-  ["박지호", 384],
-  ["최하준", 618],
-  ["정민서", 251],
-  ["강서준", 907],
-  ["윤지우", 476],
-  ["장하은", 135],
-  ["오준서", 829],
-  ["신아린", 563],
+const SAMPLE_NAMES = [
+  "김도윤",
+  "이서연",
+  "박지호",
+  "최하준",
+  "정민서",
+  "강서준",
+  "윤지우",
+  "장하은",
+  "오준서",
+  "신아린",
+  "한유준",
+  "임서아",
+  "조민재",
+  "서하율",
+  "백지안",
+  "문시우",
+  "유하린",
+  "권도현",
+  "남예준",
+  "송지민",
+  "홍라온",
+  "양서윤",
+  "안태오",
+  "배하은",
+  "전우진",
+  "노수아",
+  "심준영",
+  "차예린",
+  "구민준",
+  "하연우",
 ];
+
+const SAMPLE_ROWS = Array.from({ length: 150 }, (_, index) => [
+  `${SAMPLE_NAMES[index % SAMPLE_NAMES.length]}${Math.floor(index / SAMPLE_NAMES.length) + 1}`,
+  ((index * 73 + 111) % 999) + 1,
+]);
 
 const LADDER = {
   minValue: 1,
@@ -146,7 +171,7 @@ function loadSample() {
   dom.fileInput.value = "";
   dom.fileName.textContent = "샘플 데이터";
   applyRows([["이름", "숫자"], ...SAMPLE_ROWS]);
-  setMessage("샘플 데이터 10명이 준비됐습니다. 게임시작을 눌러 사다리를 만드세요.");
+  setMessage(`샘플 데이터 ${SAMPLE_ROWS.length}명이 준비됐습니다. 게임시작을 눌러 사다리를 만드세요.`);
 }
 
 function loadDemoIfRequested() {
@@ -255,6 +280,7 @@ function renderEmpty() {
   dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
   dom.ladderBoard.style.setProperty("--board-height", `${LADDER.boardHeight}px`);
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
+  dom.ladderSvg.setAttribute("preserveAspectRatio", "none");
   dom.ladderSvg.innerHTML = renderAxis(state.boardWidth);
   dom.topLabels.innerHTML = "";
   dom.bottomLabels.innerHTML = "";
@@ -308,6 +334,7 @@ function updateBoardSize() {
   dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
   dom.ladderBoard.style.setProperty("--board-height", `${LADDER.boardHeight}px`);
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
+  dom.ladderSvg.setAttribute("preserveAspectRatio", "none");
 }
 
 function updateStatsAndControls() {
