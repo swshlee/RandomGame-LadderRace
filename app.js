@@ -1,7 +1,14 @@
 const REQUIRED_HEADERS = {
   name: ["이름", "참여자명", "성명", "name", "participant"],
-  number: ["숫자", "번호", "사다리번호", "경매번호", "number", "value"],
 };
+
+const NUMBER_HEADER_GROUPS = [
+  ["숫자", "숫자1", "번호", "번호1", "사다리번호", "사다리번호1", "경매번호", "경매번호1", "number", "number1", "value", "value1"],
+  ["숫자2", "번호2", "사다리번호2", "경매번호2", "number2", "value2"],
+  ["숫자3", "번호3", "사다리번호3", "경매번호3", "number3", "value3"],
+];
+
+const MAX_NUMBERS_PER_PARTICIPANT = 3;
 
 const SAMPLE_NAMES = [
   "김도윤",
@@ -36,10 +43,14 @@ const SAMPLE_NAMES = [
   "하연우",
 ];
 
-const SAMPLE_ROWS = Array.from({ length: 150 }, (_, index) => [
-  `${SAMPLE_NAMES[index % SAMPLE_NAMES.length]}${Math.floor(index / SAMPLE_NAMES.length) + 1}`,
-  ((index * 73 + 111) % 999) + 1,
-]);
+const SAMPLE_ROWS = Array.from({ length: 150 }, (_, index) => {
+  const numberCount = (index % MAX_NUMBERS_PER_PARTICIPANT) + 1;
+  const numbers = Array.from({ length: MAX_NUMBERS_PER_PARTICIPANT }, (_, numberIndex) =>
+    numberIndex < numberCount ? sampleLadderNumber(index, numberIndex) : "",
+  );
+
+  return [`${SAMPLE_NAMES[index % SAMPLE_NAMES.length]}${Math.floor(index / SAMPLE_NAMES.length) + 1}`, ...numbers];
+});
 
 const LADDER = {
   minValue: 1,
@@ -153,7 +164,7 @@ async function loadFile(file) {
   clearError();
   dom.fileName.textContent = file.name;
   dom.stageTitle.textContent = "엑셀 분석 중";
-  setMessage("이름과 숫자 컬럼을 읽고 있습니다.");
+  setMessage("이름과 최대 3개의 숫자 컬럼을 읽고 있습니다.");
 
   try {
     const rows = await parseInputFile(file);
@@ -174,7 +185,7 @@ function loadSample() {
   clearError();
   dom.fileInput.value = "";
   dom.fileName.textContent = "샘플 데이터";
-  applyRows([["이름", "숫자"], ...SAMPLE_ROWS]);
+  applyRows([["이름", "숫자1", "숫자2", "숫자3"], ...SAMPLE_ROWS]);
   setMessage(`샘플 데이터 ${SAMPLE_ROWS.length}명이 준비됐습니다. 게임시작을 눌러 사다리를 만드세요.`);
 }
 
@@ -202,7 +213,7 @@ function applyRows(rows) {
   setBoardZoom(1);
 
   if (parsed.invalidRows.length > 0) {
-    setError(`${parsed.invalidRows.length}개 행은 이름 또는 1~999 정수 숫자가 맞지 않아 제외했습니다.`);
+    setError(`${parsed.invalidRows.length}개 행은 이름 또는 1~999 정수 숫자 최대 3개가 맞지 않아 제외했습니다.`);
   } else {
     clearError();
   }
@@ -217,14 +228,12 @@ function normalizeLadderRows(rows) {
   }
 
   const headers = rows[headerIndex].map((cell) => normalizeHeader(cell));
-  const columnMap = {
-    name: findHeaderIndex(headers, REQUIRED_HEADERS.name),
-    number: findHeaderIndex(headers, REQUIRED_HEADERS.number),
-  };
-
-  const missing = Object.entries(columnMap)
-    .filter(([, index]) => index < 0)
-    .map(([key]) => REQUIRED_HEADERS[key][0]);
+  const nameColumnIndex = findHeaderIndex(headers, REQUIRED_HEADERS.name);
+  const numberColumnIndexes = findNumberHeaderIndexes(headers);
+  const missing = [
+    nameColumnIndex < 0 ? REQUIRED_HEADERS.name[0] : "",
+    numberColumnIndexes.length === 0 ? NUMBER_HEADER_GROUPS[0][0] : "",
+  ].filter(Boolean);
 
   if (missing.length > 0) {
     throw new Error(`필수 컬럼을 찾지 못했습니다: ${missing.join(", ")}`);
@@ -235,10 +244,10 @@ function normalizeLadderRows(rows) {
 
   rows.slice(headerIndex + 1).forEach((row, rowOffset) => {
     const sourceRow = headerIndex + rowOffset + 2;
-    const name = String(row[columnMap.name] ?? "").trim();
-    const number = parseLadderNumber(row[columnMap.number]);
+    const name = String(row[nameColumnIndex] ?? "").trim();
+    const numbers = parseLadderNumbersForRow(row, numberColumnIndexes);
 
-    if (!name || number === null) {
+    if (!name || numbers === null || numbers.length === 0) {
       if (row.some((cell) => String(cell ?? "").trim() !== "")) {
         invalidRows.push(sourceRow);
       }
@@ -249,7 +258,7 @@ function normalizeLadderRows(rows) {
       id: participants.length,
       row: sourceRow,
       name,
-      number,
+      numbers,
     });
   });
 
@@ -261,13 +270,17 @@ function normalizeLadderRows(rows) {
 }
 
 function buildRungs(participants) {
-  return participants.slice(0, -1).map((participant, index) => ({
-    id: index,
-    left: index,
-    right: index + 1,
-    value: participant.number,
-    owner: participant.name,
-  }));
+  let id = 0;
+  return participants.slice(0, -1).flatMap((participant, index) =>
+    participant.numbers.map((value, valueIndex) => ({
+      id: id++,
+      left: index,
+      right: index + 1,
+      value,
+      valueIndex,
+      owner: participant.name,
+    })),
+  );
 }
 
 function renderEmpty() {
@@ -425,7 +438,7 @@ function renderLabels(winnerIndex, options = {}) {
   const visibleIndexes = visibleIndexesFor(state.participants.length, visibleLabels, options.visibleLabelIndexes);
   const animatedIndexes = animatedIndexesFor(options.animatedLabelIndex, options.animatedLabelIndexes);
   dom.topLabels.innerHTML = state.participants
-    .map((participant, index) => {
+    .map((_, index) => {
       if (!visibleIndexes.has(index)) {
         return "";
       }
@@ -434,7 +447,7 @@ function renderLabels(winnerIndex, options = {}) {
       const y = yPxForValue(LADDER.topY);
       return `
         <div class="person-label top ${animated ? "label-in" : ""} ${winnerIndex === index ? "winner" : ""}" style="left:${round(x)}px; top:${round(y)}px">
-          <span>${escapeHtml(participant.name)}</span>
+          <span>${index + 1}</span>
         </div>
       `;
     })
@@ -1094,6 +1107,46 @@ function parseCsv(text) {
   return rows;
 }
 
+function parseLadderNumbersForRow(row, columnIndexes) {
+  const numbers = [];
+
+  for (const columnIndex of columnIndexes) {
+    const parsed = parseLadderNumbers(row[columnIndex]);
+    if (parsed === null) {
+      return null;
+    }
+    numbers.push(...parsed);
+  }
+
+  const uniqueNumbers = uniqueValues(numbers);
+  return uniqueNumbers.length <= MAX_NUMBERS_PER_PARTICIPANT ? uniqueNumbers : null;
+}
+
+function parseLadderNumbers(value) {
+  if (typeof value === "number") {
+    const number = parseLadderNumber(value);
+    return number === null ? null : [number];
+  }
+
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return [];
+  }
+
+  const parts = text.split(/[,\s;/|]+/).filter(Boolean);
+  const numbers = [];
+
+  for (const part of parts) {
+    const number = parseLadderNumber(part);
+    if (number === null) {
+      return null;
+    }
+    numbers.push(number);
+  }
+
+  return numbers;
+}
+
 function parseLadderNumber(value) {
   if (typeof value === "number" && Number.isInteger(value)) {
     return value >= LADDER.minValue && value <= LADDER.maxValue ? value : null;
@@ -1118,6 +1171,12 @@ function normalizeHeader(value) {
 function findHeaderIndex(normalizedHeaders, candidates) {
   const normalizedCandidates = candidates.map((candidate) => normalizeHeader(candidate));
   return normalizedHeaders.findIndex((header) => normalizedCandidates.includes(header));
+}
+
+function findNumberHeaderIndexes(normalizedHeaders) {
+  return NUMBER_HEADER_GROUPS.map((candidates) => findHeaderIndex(normalizedHeaders, candidates))
+    .filter((index, currentIndex, indexes) => index >= 0 && indexes.indexOf(index) === currentIndex)
+    .slice(0, MAX_NUMBERS_PER_PARTICIPANT);
 }
 
 function xForColumn(index) {
@@ -1151,8 +1210,16 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function sampleLadderNumber(rowIndex, numberIndex) {
+  return ((rowIndex * 73 + numberIndex * 211 + 111) % 999) + 1;
+}
+
 function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function uniqueValues(values) {
+  return [...new Set(values)];
 }
 
 function round(value) {

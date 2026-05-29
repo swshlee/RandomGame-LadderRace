@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>랜덤 사다리 경주</title>
-    <link rel="stylesheet" href="styles.css?v=smoothbuild6" />
+    <link rel="stylesheet" href="styles.css?v=smoothbuild7" />
   </head>
   <body>
     <main class="app-shell">
@@ -18,7 +18,7 @@
           <input id="fileInput" type="file" accept=".xlsx,.csv" />
           <span class="drop-icon">↑</span>
           <strong id="fileName">엑셀 파일 업로드</strong>
-          <small>이름 / 숫자 컬럼 필요, 숫자는 1~999</small>
+          <small>이름 / 숫자1 필수, 숫자2~3 선택</small>
         </label>
 
         <div id="errorBox" class="error-box" role="alert" hidden></div>
@@ -52,7 +52,7 @@
 
         <div class="guide">
           <span>입력 규칙</span>
-          <p>엑셀 행 순서가 제출 순서가 됩니다. 마지막 사람의 숫자는 오른쪽 Column이 없어 연결 Row를 만들지 않습니다.</p>
+          <p>한 사람당 숫자는 최대 3개까지 입력할 수 있습니다. 마지막 사람의 숫자는 오른쪽 Column이 없어 연결 Row를 만들지 않습니다.</p>
         </div>
       </section>
 
@@ -88,6 +88,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=smoothbuild6"></script>
+    <script src="app.js?v=smoothbuild7"></script>
   </body>
 </html>
