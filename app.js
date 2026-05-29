@@ -52,8 +52,10 @@ const LADDER = {
   boardHeight: 760,
   columnGap: 94,
   marginX: 76,
+  fitPadding: 18,
   buildMaxMs: 5000,
   runZoom: 1.58,
+  heartMsPerUnit: 6.2,
 };
 
 const dom = {
@@ -87,6 +89,7 @@ const state = {
   participants: [],
   rungs: [],
   boardWidth: LADDER.minBoardWidth,
+  boardHeight: LADDER.boardHeight,
   ladderBuilt: false,
   building: false,
   running: false,
@@ -94,6 +97,7 @@ const state = {
   token: 0,
   route: null,
   heartPoint: null,
+  boardZoom: 1,
 };
 
 init();
@@ -138,7 +142,7 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", resetGame);
   dom.buildButton.addEventListener("click", buildLadderWithAnimation);
   dom.goButton.addEventListener("click", startRun);
-  window.addEventListener("resize", positionHeartAtStart);
+  window.addEventListener("resize", handleResize);
 }
 
 async function loadFile(file) {
@@ -275,10 +279,10 @@ function renderEmpty() {
   state.building = false;
   state.gameActive = false;
   state.boardWidth = LADDER.minBoardWidth;
+  state.boardHeight = LADDER.boardHeight;
   syncStageState();
   setBoardZoom(1);
-  dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
-  dom.ladderBoard.style.setProperty("--board-height", `${LADDER.boardHeight}px`);
+  updateBoardSize();
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
   dom.ladderSvg.setAttribute("preserveAspectRatio", "none");
   dom.ladderSvg.innerHTML = renderAxis(state.boardWidth);
@@ -330,9 +334,18 @@ function renderLadder(route = null, options = {}) {
 
 function updateBoardSize() {
   const count = Math.max(1, state.participants.length);
-  state.boardWidth = Math.max(LADDER.minBoardWidth, LADDER.marginX * 2 + (count - 1) * LADDER.columnGap);
+  const viewportRect = dom.ladderViewport.getBoundingClientRect();
+  const viewportWidth = viewportRect.width || dom.ladderViewport.clientWidth || Math.max(320, window.innerWidth - 24);
+  const viewportHeight = viewportRect.height || dom.ladderViewport.clientHeight || Math.max(320, window.innerHeight - 140);
+  const availableWidth = Math.max(1, viewportWidth - LADDER.fitPadding * 2);
+  const availableHeight = Math.max(1, viewportHeight - LADDER.fitPadding * 2);
+  const naturalWidth = Math.max(LADDER.minBoardWidth, LADDER.marginX * 2 + (count - 1) * LADDER.columnGap);
+
+  state.boardWidth = Math.min(naturalWidth, availableWidth);
+  state.boardHeight = Math.min(LADDER.boardHeight, availableHeight);
   dom.ladderBoard.style.setProperty("--board-width", `${state.boardWidth}px`);
-  dom.ladderBoard.style.setProperty("--board-height", `${LADDER.boardHeight}px`);
+  dom.ladderBoard.style.setProperty("--board-height", `${state.boardHeight}px`);
+  updateBoardScale();
   dom.ladderSvg.setAttribute("viewBox", `0 0 ${state.boardWidth} 1000`);
   dom.ladderSvg.setAttribute("preserveAspectRatio", "none");
 }
@@ -641,10 +654,12 @@ function calculateRoute(startIndex) {
 
 async function animateRoute(route, token) {
   const path = dom.ladderSvg.querySelector("#routePath");
+  const timings = routeSegmentTimings(route);
+  const totalDuration = timings.reduce((sum, timing) => sum + timing.duration, 0);
   const length = path?.getTotalLength ? Math.ceil(path.getTotalLength()) : 1;
   if (path) {
     path.style.setProperty("--route-length", `${length}`);
-    path.style.setProperty("--route-duration", `${Math.max(3200, length * 5)}ms`);
+    path.style.setProperty("--route-duration", `${totalDuration}ms`);
     path.classList.add("running");
   }
 
@@ -652,16 +667,23 @@ async function animateRoute(route, token) {
   dom.heart.classList.add("running");
   await moveHeart(route.points[0], 0, { follow: true });
 
-  for (let index = 1; index < route.points.length; index += 1) {
+  for (const timing of timings) {
     if (token !== state.token) {
       return;
     }
-    const from = route.points[index - 1];
-    const to = route.points[index];
-    const distance = Math.hypot(to.x - from.x, to.y - from.y);
-    const duration = clampNumber(Math.round(distance * 4.6), 240, 980);
-    await moveHeart(to, duration, { follow: true });
+    await moveHeart(timing.to, timing.duration, { follow: true });
   }
+}
+
+function routeSegmentTimings(route) {
+  return route.points.slice(1).map((to, index) => {
+    const from = route.points[index];
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    return {
+      to,
+      duration: Math.max(80, Math.round(distance * LADDER.heartMsPerUnit)),
+    };
+  });
 }
 
 function moveHeart(point, duration, options = {}) {
@@ -711,10 +733,10 @@ async function zoomToHeart(point, token) {
 }
 
 function followHeart(point, behavior = "smooth") {
-  const zoom = currentBoardZoom();
+  const scale = currentBoardScale();
   const contentHeight = dom.ladderContent.clientHeight || LADDER.boardHeight;
-  const x = point.x * zoom;
-  const y = point.y * (contentHeight / 1000) * zoom;
+  const x = point.x * scale;
+  const y = point.y * (contentHeight / 1000) * scale;
   const maxLeft = Math.max(0, dom.ladderViewport.scrollWidth - dom.ladderViewport.clientWidth);
   const maxTop = Math.max(0, dom.ladderViewport.scrollHeight - dom.ladderViewport.clientHeight);
   const left = clampNumber(Math.round(x - dom.ladderViewport.clientWidth / 2), 0, maxLeft);
@@ -723,12 +745,36 @@ function followHeart(point, behavior = "smooth") {
 }
 
 function setBoardZoom(value) {
+  state.boardZoom = value;
   dom.ladderBoard.style.setProperty("--board-zoom", `${value}`);
+  updateBoardScale();
 }
 
 function currentBoardZoom() {
-  const value = Number.parseFloat(getComputedStyle(dom.ladderBoard).getPropertyValue("--board-zoom"));
-  return Number.isFinite(value) && value > 0 ? value : 1;
+  return state.boardZoom || 1;
+}
+
+function currentBoardScale() {
+  return currentBoardZoom();
+}
+
+function updateBoardScale() {
+  const scale = currentBoardScale();
+  dom.ladderBoard.style.setProperty("--board-scale", `${scale}`);
+  dom.ladderBoard.style.setProperty("--board-display-width", `${Math.ceil(state.boardWidth * scale)}px`);
+  dom.ladderBoard.style.setProperty("--board-display-height", `${Math.ceil(state.boardHeight * scale)}px`);
+}
+
+function handleResize() {
+  if (state.participants.length === 0) {
+    updateBoardSize();
+    dom.ladderSvg.innerHTML = renderAxis(state.boardWidth);
+  } else if (state.ladderBuilt || state.route) {
+    renderLadder(state.route);
+  } else {
+    renderPreparedLadder();
+  }
+  positionHeartAtStart();
 }
 
 function syncStageState() {
@@ -1088,7 +1134,7 @@ function yForValue(value) {
 }
 
 function yPxForValue(value) {
-  return (value / (LADDER.axisMax - LADDER.axisMin)) * LADDER.boardHeight;
+  return (value / (LADDER.axisMax - LADDER.axisMin)) * state.boardHeight;
 }
 
 function pointsToPath(points) {

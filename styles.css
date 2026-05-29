@@ -350,21 +350,28 @@ body.panel-collapsed .stage-top {
 .ladder-viewport {
   position: relative;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
     linear-gradient(120deg, rgba(255, 255, 255, 0.06), transparent 38%),
     rgba(5, 6, 8, 0.48);
   scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.ladder-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .ladder-board {
   --board-zoom: 1;
+  --board-scale: 1;
   --board-height: 760px;
   position: relative;
-  width: calc(var(--board-width, 980px) * var(--board-zoom));
-  height: calc(var(--board-height) * var(--board-zoom));
+  width: var(--board-display-width, var(--board-width, 980px));
+  height: var(--board-display-height, var(--board-height));
   margin: 0 auto;
   transition:
     width 900ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -375,7 +382,7 @@ body.panel-collapsed .stage-top {
   position: relative;
   width: var(--board-width, 980px);
   height: var(--board-height);
-  transform: scale(var(--board-zoom));
+  transform: scale(var(--board-scale));
   transform-origin: 0 0;
   transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
